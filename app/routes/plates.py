@@ -24,9 +24,12 @@ def create_setup_intent():
 @router.post("/register", response_model=VehicleResponse)
 def register_vehicle(data: VehicleRegister, db: Session = Depends(get_db)):
     """Register a vehicle's plate number with a payment method."""
-    # Check if plate already registered
-    existing = db.query(Vehicle).filter(Vehicle.plate_number == data.plate_number.upper()).first()
-    if existing:
+    # Check if plate already registered (active only)
+    existing = db.query(Vehicle).filter(
+        Vehicle.plate_number == data.plate_number.upper()
+    ).first()
+
+    if existing and existing.is_active:
         raise HTTPException(status_code=400, detail="Plate number already registered")
 
     # Create Stripe customer
@@ -35,7 +38,18 @@ def register_vehicle(data: VehicleRegister, db: Session = Depends(get_db)):
     # Attach payment method (returns the real pm_ ID)
     actual_pm_id = payment.attach_payment_method(customer_id, data.stripe_payment_method_id)
 
-    # Save to database
+    if existing and not existing.is_active:
+        # Reactivate with new details
+        existing.owner_name = data.owner_name
+        existing.owner_email = data.owner_email
+        existing.stripe_customer_id = customer_id
+        existing.stripe_payment_method_id = actual_pm_id
+        existing.is_active = True
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    # Save new vehicle
     vehicle = Vehicle(
         plate_number=data.plate_number.upper(),
         owner_name=data.owner_name,
