@@ -38,6 +38,7 @@ export interface PlateDetectionResult {
   plate_number: string;
   confidence: number;
   bbox: number[][] | null;
+  is_registered?: boolean;
 }
 
 export interface SetupIntentResponse {

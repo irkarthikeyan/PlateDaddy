@@ -59,6 +59,7 @@ class PlateDetectionResult(BaseModel):
     plate_number: str
     confidence: float
     bbox: Optional[List[List[int]]] = None
+    is_registered: Optional[bool] = None
 
 
 class PlateDetectedEvent(BaseModel):

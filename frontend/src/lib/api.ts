@@ -87,6 +87,25 @@ export const detectPlate = async (
   return res.json();
 };
 
+// Detect plate from a canvas blob (for live webcam scanning)
+export const detectPlateBlob = async (
+  blob: Blob
+): Promise<PlateDetectionResult> => {
+  const formData = new FormData();
+  formData.append("image", blob, "frame.jpg");
+  const res = await fetch(`${API_URL}/scan/detect`, {
+    method: "POST",
+    body: formData,
+  });
+  if (!res.ok) {
+    const error = await res
+      .json()
+      .catch(() => ({ detail: "Detection failed" }));
+    throw new Error(error.detail);
+  }
+  return res.json();
+};
+
 // Charge by plate number (no image needed)
 export const chargePlate = (data: ChargePlatePayload) =>
   request<ScanResponse>("/scan/charge-plate", {

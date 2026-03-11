@@ -100,8 +100,8 @@ async def scan_plate(image: UploadFile, amount: Optional[int] = None, db: Sessio
 
 
 @router.post("/detect")
-async def detect_only(image: UploadFile):
-    """Detect a plate number without processing payment. Useful for testing LPR."""
+async def detect_only(image: UploadFile, db: Session = Depends(get_db)):
+    """Detect a plate number without processing payment. Also checks registration status."""
     image_bytes = await image.read()
     if not image_bytes:
         raise HTTPException(status_code=400, detail="Empty image file")
@@ -112,6 +112,14 @@ async def detect_only(image: UploadFile):
             status_code=422,
             detail="Could not detect a license plate in the image",
         )
+
+    # Check if plate is registered
+    vehicle = (
+        db.query(Vehicle)
+        .filter(Vehicle.plate_number == result.plate_number, Vehicle.is_active)
+        .first()
+    )
+    result.is_registered = vehicle is not None
 
     return result
 

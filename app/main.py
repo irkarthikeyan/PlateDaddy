@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import Base, engine
-from app.routes import config_routes, plates, scan, transactions, video
+from app.routes import config_routes, plates, scan, transactions
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -15,7 +15,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,7 +25,6 @@ app.include_router(plates.router)
 app.include_router(scan.router)
 app.include_router(transactions.router)
 app.include_router(config_routes.router)
-app.include_router(video.router)
 
 
 @app.get("/")
