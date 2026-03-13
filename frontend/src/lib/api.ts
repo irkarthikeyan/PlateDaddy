@@ -7,15 +7,25 @@ import type {
   SetupIntentResponse,
   StripeKeyResponse,
   ChargePlatePayload,
+  Store,
+  StoreCreatePayload,
+  StoreUpdatePayload,
+  Membership,
+  StoreRegisterPayload,
+  StoreLoginPayload,
+  AuthResponse,
 } from "./types";
+import { getToken } from "./auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const token = getToken();
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options?.headers,
     },
   });
@@ -25,6 +35,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return res.json();
 }
+
+// Auth
+export const registerStore = (data: StoreRegisterPayload) =>
+  request<AuthResponse>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const loginStore = (data: StoreLoginPayload) =>
+  request<AuthResponse>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const getMe = () => request<Store>("/auth/me");
 
 // Config
 export const getStripeKey = () =>
@@ -58,9 +83,11 @@ export const scanPlate = async (
   const formData = new FormData();
   formData.append("image", file);
   const url = amount ? `/scan/?amount=${amount}` : "/scan/";
+  const token = getToken();
   const res = await fetch(`${API_URL}${url}`, {
     method: "POST",
     body: formData,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Scan failed" }));
@@ -74,9 +101,11 @@ export const detectPlate = async (
 ): Promise<PlateDetectionResult> => {
   const formData = new FormData();
   formData.append("image", file);
+  const token = getToken();
   const res = await fetch(`${API_URL}/scan/detect`, {
     method: "POST",
     body: formData,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
     const error = await res
@@ -93,9 +122,11 @@ export const detectPlateBlob = async (
 ): Promise<PlateDetectionResult> => {
   const formData = new FormData();
   formData.append("image", blob, "frame.jpg");
+  const token = getToken();
   const res = await fetch(`${API_URL}/scan/detect`, {
     method: "POST",
     body: formData,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok) {
     const error = await res
@@ -112,6 +143,29 @@ export const chargePlate = (data: ChargePlatePayload) =>
     method: "POST",
     body: JSON.stringify(data),
   });
+
+// Stores
+export const listStores = () => request<Store[]>("/stores/");
+
+export const getStore = (id: number) => request<Store>(`/stores/${id}`);
+
+export const createStore = (data: StoreCreatePayload) =>
+  request<Store>("/stores/", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+
+export const updateStore = (id: number, data: StoreUpdatePayload) =>
+  request<Store>(`/stores/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+
+export const listMemberships = (storeId: number) =>
+  request<Membership[]>(`/stores/${storeId}/memberships`);
+
+export const getMembership = (storeId: number, plate: string) =>
+  request<Membership>(`/stores/${storeId}/memberships/${plate}`);
 
 // Transactions
 export const listTransactions = (params?: {

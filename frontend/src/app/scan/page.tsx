@@ -3,23 +3,85 @@
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getVehicle, chargePlate } from "@/lib/api";
-import type { Vehicle, ScanResponse } from "@/lib/types";
+import { getVehicle, chargePlate, listStores } from "@/lib/api";
+import type { Vehicle, ScanResponse, Store } from "@/lib/types";
+import { useAuth } from "@/lib/auth";
 import StatusBadge from "@/components/StatusBadge";
-import { ArrowLeft, CreditCard, User, Mail, Car, Search } from "lucide-react";
+import {
+  ArrowLeft,
+  CreditCard,
+  User,
+  Mail,
+  Car,
+  Search,
+  Star,
+  Gift,
+  Coins,
+} from "lucide-react";
 import Link from "next/link";
 
+function MembershipResult({ result }: { result: ScanResponse }) {
+  if (result.total_visits === null) return null;
+
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-5 mt-4">
+      <h4 className="font-semibold text-indigo-800 mb-3 flex items-center gap-2">
+        <Star size={16} />
+        Membership Points
+      </h4>
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-white rounded-lg p-3 text-center border border-indigo-100">
+          <p className="text-xs text-indigo-500 mb-1">Total Visits</p>
+          <p className="text-2xl font-bold text-indigo-800">
+            {result.total_visits}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg p-3 text-center border border-indigo-100">
+          <p className="text-xs text-indigo-500 mb-1">Credit Balance</p>
+          <p className="text-2xl font-bold text-indigo-800">
+            ${((result.credit_balance_cents ?? 0) / 100).toFixed(2)}
+          </p>
+        </div>
+        <div className="bg-white rounded-lg p-3 text-center border border-indigo-100">
+          <p className="text-xs text-indigo-500 mb-1">Credit Applied</p>
+          <p className="text-2xl font-bold text-emerald-700">
+            ${((result.credit_applied_cents ?? 0) / 100).toFixed(2)}
+          </p>
+        </div>
+      </div>
+
+      {result.reward_earned && (
+        <div className="mt-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+          <Gift size={16} className="text-amber-600 shrink-0" />
+          <p className="text-amber-800 text-sm font-medium">
+            🎉 Milestone reached! ${((result.credit_balance_cents ?? 0) / 100).toFixed(2)} credit has been added to this account.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChargeForm({ plate }: { plate: string }) {
+  const authStore = useAuth();
   const [vehicle, setVehicle] = useState<Vehicle | null>(null);
+  const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
+  const [selectedStoreId, setSelectedStoreId] = useState<number | "">("");
+  const [applyCredit, setApplyCredit] = useState(false);
   const [charging, setCharging] = useState(false);
   const [result, setResult] = useState<ScanResponse | null>(null);
 
   useEffect(() => {
-    getVehicle(plate)
-      .then(setVehicle)
+    Promise.all([getVehicle(plate), listStores()])
+      .then(([v, s]) => {
+        setVehicle(v);
+        setStores(s);
+        // Auto-select the logged-in store
+        if (authStore) setSelectedStoreId(authStore.id);
+      })
       .catch((err) => setError(err.message))
       .finally(() => setLoading(false));
   }, [plate]);
@@ -35,6 +97,8 @@ function ChargeForm({ plate }: { plate: string }) {
       const res = await chargePlate({
         plate_number: plate,
         amount: amountCents,
+        store_id: selectedStoreId !== "" ? selectedStoreId : undefined,
+        apply_credit: applyCredit,
       });
       setResult(res);
     } catch (err) {
@@ -123,6 +187,63 @@ function ChargeForm({ plate }: { plate: string }) {
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-900"
             />
           </div>
+
+          {/* Store selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Store{" "}
+              <span className="text-gray-400 font-normal">
+                (for membership points)
+              </span>
+            </label>
+            <select
+              value={selectedStoreId}
+              onChange={(e) => {
+                setSelectedStoreId(
+                  e.target.value !== "" ? Number(e.target.value) : ""
+                );
+                if (e.target.value === "") setApplyCredit(false);
+              }}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-gray-900 bg-white"
+            >
+              <option value="">— No store (skip points) —</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · reward every {s.visit_threshold} visits · $
+                  {(s.reward_amount_cents / 100).toFixed(2)} credit
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Apply credit toggle — only shown when a store is selected */}
+          {selectedStoreId !== "" && (
+            <label className="flex items-center gap-3 cursor-pointer select-none">
+              <div className="relative">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={applyCredit}
+                  onChange={(e) => setApplyCredit(e.target.checked)}
+                />
+                <div
+                  className={`w-10 h-6 rounded-full transition-colors ${
+                    applyCredit ? "bg-emerald-500" : "bg-gray-300"
+                  }`}
+                />
+                <div
+                  className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                    applyCredit ? "translate-x-4" : ""
+                  }`}
+                />
+              </div>
+              <span className="text-sm text-gray-700 flex items-center gap-1.5">
+                <Coins size={15} className="text-indigo-500" />
+                Apply available credit to this charge
+              </span>
+            </label>
+          )}
+
           <button
             onClick={handleCharge}
             disabled={charging}
@@ -157,7 +278,7 @@ function ChargeForm({ plate }: { plate: string }) {
               <span className="ml-2 text-green-900">{result.owner_name}</span>
             </div>
             <div>
-              <span className="text-green-600">Amount:</span>
+              <span className="text-green-600">Amount Charged:</span>
               <span className="ml-2 font-bold text-green-900">
                 ${(result.amount / 100).toFixed(2)}
               </span>
@@ -170,6 +291,7 @@ function ChargeForm({ plate }: { plate: string }) {
             </div>
           </div>
           <p className="mt-3 text-green-700 text-sm">{result.message}</p>
+          <MembershipResult result={result} />
         </div>
       )}
     </div>
@@ -190,10 +312,8 @@ function PlateSearch() {
     setError(null);
     try {
       await getVehicle(plate);
-      // Vehicle found — go to charge page
       router.push(`/scan?plate=${plate}`);
     } catch {
-      // Vehicle not found — offer to register
       setError(plate);
     } finally {
       setSearching(false);

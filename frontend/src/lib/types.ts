@@ -32,6 +32,11 @@ export interface ScanResponse {
   transaction_status: string;
   amount: number;
   message: string;
+  // Membership fields — present only when store_id was provided
+  credit_applied_cents: number | null;
+  total_visits: number | null;
+  credit_balance_cents: number | null;
+  reward_earned: boolean | null;
 }
 
 export interface PlateDetectionResult {
@@ -59,4 +64,57 @@ export interface PlateDetectedEvent {
 export interface ChargePlatePayload {
   plate_number: string;
   amount?: number;
+  store_id?: number;
+  apply_credit?: boolean;
+}
+
+export interface Store {
+  id: number;
+  name: string;
+  email: string | null;
+  visit_threshold: number;
+  reward_amount_cents: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface StoreRegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  visit_threshold?: number;
+  reward_amount_cents?: number;
+}
+
+export interface StoreLoginPayload {
+  email: string;
+  password: string;
+}
+
+export interface AuthResponse {
+  access_token: string;
+  token_type: string;
+  store: Store;
+}
+
+export interface StoreCreatePayload {
+  name: string;
+  visit_threshold?: number;
+  reward_amount_cents?: number;
+}
+
+export interface StoreUpdatePayload {
+  name?: string;
+  visit_threshold?: number;
+  reward_amount_cents?: number;
+  is_active?: boolean;
+}
+
+export interface Membership {
+  id: number;
+  plate_number: string;
+  store_id: number;
+  total_visits: number;
+  credit_balance_cents: number;
+  updated_at: string;
 }
