@@ -22,6 +22,7 @@ export interface Transaction {
   status: string;
   confidence: number | null;
   stripe_payment_intent_id: string | null;
+  store_id: number | null;
   created_at: string;
 }
 
